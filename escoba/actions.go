@@ -140,7 +140,7 @@ func (a ActionThrowCard) String() string {
 }
 
 // findAllValidCombinations finds all possible combinations of table cards that sum to (15 - thrownCardValue)
-func (g *GameState) findAllValidCombinations(thrownCard Card, tableCards []Card) [][]Card {
+func findAllValidCombinations(thrownCard Card, tableCards []Card) [][]Card {
 	targetSum := 15
 	thrownValue := thrownCard.GetEscobaValue()
 
@@ -152,13 +152,13 @@ func (g *GameState) findAllValidCombinations(thrownCard Card, tableCards []Card)
 	var allCombinations [][]Card
 
 	// Use DFS to find all valid combinations
-	g.findCombinationsDFS(tableCards, remainingSum, []Card{}, 0, &allCombinations)
+	findCombinationsDFS(tableCards, remainingSum, []Card{}, 0, &allCombinations)
 
 	return allCombinations
 }
 
 // findCombinationsDFS recursively finds all combinations that sum to targetSum
-func (g *GameState) findCombinationsDFS(tableCards []Card, targetSum int, currentCombination []Card, startIndex int, allCombinations *[][]Card) {
+func findCombinationsDFS(tableCards []Card, targetSum int, currentCombination []Card, startIndex int, allCombinations *[][]Card) {
 	// Base case: if target sum is 0, we found a valid combination
 	if targetSum == 0 {
 		// Make a copy of the current combination and add it to results
@@ -178,10 +178,19 @@ func (g *GameState) findCombinationsDFS(tableCards []Card, targetSum int, curren
 		card := tableCards[i]
 		cardValue := card.GetEscobaValue()
 
+		// Create a proper copy to avoid slice sharing issues
+		newCombination := make([]Card, len(currentCombination), len(currentCombination)+1)
+		copy(newCombination, currentCombination)
+		newCombination = append(newCombination, card)
+
 		// Include this card and recurse
-		newCombination := append(currentCombination, card)
-		g.findCombinationsDFS(tableCards, targetSum-cardValue, newCombination, i+1, allCombinations)
+		findCombinationsDFS(tableCards, targetSum-cardValue, newCombination, i+1, allCombinations)
 	}
+}
+
+// Update the GameState method to use the standalone function
+func (g *GameState) findAllValidCombinations(thrownCard Card, tableCards []Card) [][]Card {
+	return findAllValidCombinations(thrownCard, tableCards)
 }
 
 // removeCardsFromTable removes the specified cards from the table

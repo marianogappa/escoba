@@ -2,6 +2,7 @@ package escoba
 
 import (
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 )
@@ -258,6 +259,358 @@ func TestFindAllValidCombinations(t *testing.T) {
 	if !foundDouble {
 		t.Error("Should have found double-card combination [3,5]")
 	}
+}
+
+func TestFindCombinationsDFS(t *testing.T) {
+	tests := []struct {
+		name                 string
+		tableCards           []Card
+		expectedCombinations [][]Card
+		description          string
+	}{
+		{
+			name: "No combinations possible",
+			tableCards: []Card{
+				{Suit: ORO, Number: 1},    // Value 1
+				{Suit: COPA, Number: 2},   // Value 2
+				{Suit: ESPADA, Number: 3}, // Value 3
+			},
+			expectedCombinations: [][]Card{},
+			description:          "No subset of [1,2,3] can sum to 15",
+		},
+		{
+			name: "Single high value card",
+			tableCards: []Card{
+				{Suit: ORO, Number: 12},   // Value 10 (Rey)
+				{Suit: COPA, Number: 5},   // Value 5
+				{Suit: ESPADA, Number: 2}, // Value 2
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: COPA, Number: 5}, {Suit: ORO, Number: 12}}, // 5 + 10 = 15
+			},
+			description: "Rey (10) + 5 = 15",
+		},
+		{
+			name: "Two cards sum to 15",
+			tableCards: []Card{
+				{Suit: ORO, Number: 7},    // Value 7
+				{Suit: COPA, Number: 10},  // Value 8 (Sota)
+				{Suit: ESPADA, Number: 3}, // Value 3
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 7}, {Suit: COPA, Number: 10}}, // 7 + 8 = 15
+			},
+			description: "Only [7,8] sums to 15",
+		},
+		{
+			name: "Multiple two-card combinations",
+			tableCards: []Card{
+				{Suit: ORO, Number: 7},     // Value 7
+				{Suit: COPA, Number: 10},   // Value 8 (Sota)
+				{Suit: ESPADA, Number: 11}, // Value 9 (Caballo)
+				{Suit: BASTO, Number: 6},   // Value 6
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 7}, {Suit: COPA, Number: 10}},     // 7 + 8 = 15
+				{{Suit: ESPADA, Number: 11}, {Suit: BASTO, Number: 6}}, // 9 + 6 = 15
+			},
+			description: "[7,8] and [9,6] both sum to 15",
+		},
+		{
+			name: "Three cards sum to 15",
+			tableCards: []Card{
+				{Suit: ORO, Number: 5},    // Value 5
+				{Suit: COPA, Number: 4},   // Value 4
+				{Suit: ESPADA, Number: 6}, // Value 6
+				{Suit: BASTO, Number: 2},  // Value 2
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 5}, {Suit: COPA, Number: 4}, {Suit: ESPADA, Number: 6}}, // 5 + 4 + 6 = 15
+			},
+			description: "Only [5,4,6] sums to 15",
+		},
+		{
+			name: "Multiple combinations found",
+			tableCards: []Card{
+				{Suit: ORO, Number: 1},    // Value 1
+				{Suit: COPA, Number: 4},   // Value 4
+				{Suit: ESPADA, Number: 5}, // Value 5
+				{Suit: BASTO, Number: 10}, // Value 8 (Sota)
+				{Suit: ESPADA, Number: 2}, // Value 2
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 1}, {Suit: COPA, Number: 4}, {Suit: ESPADA, Number: 2}, {Suit: BASTO, Number: 10}}, // 1 + 4 + 2 + 8 = 15
+				{{Suit: ESPADA, Number: 5}, {Suit: ESPADA, Number: 2}, {Suit: BASTO, Number: 10}},                       // 5 + 2 + 8 = 15
+			},
+			description: "Two different combinations sum to 15",
+		},
+		{
+			name: "Four cards sum to 15",
+			tableCards: []Card{
+				{Suit: ORO, Number: 1},    // Value 1
+				{Suit: COPA, Number: 2},   // Value 2
+				{Suit: ESPADA, Number: 5}, // Value 5
+				{Suit: BASTO, Number: 7},  // Value 7
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 1}, {Suit: COPA, Number: 2}, {Suit: ESPADA, Number: 5}, {Suit: BASTO, Number: 7}}, // 1 + 2 + 5 + 7 = 15
+			},
+			description: "All cards [1,2,5,7] sum to 15",
+		},
+		{
+			name: "Mixed combinations",
+			tableCards: []Card{
+				{Suit: ORO, Number: 6},    // Value 6
+				{Suit: COPA, Number: 11},  // Value 9 (Caballo)
+				{Suit: ESPADA, Number: 3}, // Value 3
+				{Suit: BASTO, Number: 4},  // Value 4
+				{Suit: ESPADA, Number: 2}, // Value 2
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: BASTO, Number: 4}, {Suit: COPA, Number: 11}, {Suit: ESPADA, Number: 2}},                          // 4 + 9 + 2 = 15
+				{{Suit: BASTO, Number: 4}, {Suit: ESPADA, Number: 2}, {Suit: ESPADA, Number: 3}, {Suit: ORO, Number: 6}}, // 4 + 2 + 3 + 6 = 15
+				{{Suit: COPA, Number: 11}, {Suit: ORO, Number: 6}},                                                       // 9 + 6 = 15
+			},
+			description: "Three different combinations sum to 15",
+		},
+		{
+			name: "Duplicate values different suits",
+			tableCards: []Card{
+				{Suit: ORO, Number: 7},    // Value 7
+				{Suit: COPA, Number: 7},   // Value 7
+				{Suit: ESPADA, Number: 1}, // Value 1
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 7}, {Suit: COPA, Number: 7}, {Suit: ESPADA, Number: 1}}, // 7 + 7 + 1 = 15
+			},
+			description: "Both 7s plus 1 sum to 15",
+		},
+		{
+			name: "Spanish deck high cards",
+			tableCards: []Card{
+				{Suit: ORO, Number: 10},    // Value 8 (Sota)
+				{Suit: COPA, Number: 11},   // Value 9 (Caballo)
+				{Suit: ESPADA, Number: 12}, // Value 10 (Rey)
+				{Suit: BASTO, Number: 5},   // Value 5
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ESPADA, Number: 12}, {Suit: BASTO, Number: 5}}, // 10 + 5 = 15
+			},
+			description: "Rey (10) + 5 = 15",
+		},
+		{
+			name: "Multiple duplicate combinations",
+			tableCards: []Card{
+				{Suit: ORO, Number: 5},    // Value 5
+				{Suit: COPA, Number: 5},   // Value 5
+				{Suit: ESPADA, Number: 5}, // Value 5
+				{Suit: BASTO, Number: 10}, // Value 8 (Sota)
+				{Suit: ESPADA, Number: 2}, // Value 2
+			},
+			expectedCombinations: [][]Card{
+				{{Suit: ORO, Number: 5}, {Suit: COPA, Number: 5}, {Suit: ESPADA, Number: 5}},      // 5 + 5 + 5 = 15
+				{{Suit: ORO, Number: 5}, {Suit: BASTO, Number: 10}, {Suit: ESPADA, Number: 2}},    // 5 + 8 + 2 = 15
+				{{Suit: COPA, Number: 5}, {Suit: BASTO, Number: 10}, {Suit: ESPADA, Number: 2}},   // 5 + 8 + 2 = 15
+				{{Suit: ESPADA, Number: 5}, {Suit: BASTO, Number: 10}, {Suit: ESPADA, Number: 2}}, // 5 + 8 + 2 = 15 (same suit different numbers)
+			},
+			description: "Three 5s = 15, and each 5 + Sota(8) + 2 = 15",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var allCombinations [][]Card
+			findCombinationsDFS(tt.tableCards, 15, []Card{}, 0, &allCombinations)
+
+			// Sort both actual and expected combinations for easier comparison
+			sortCombinations(allCombinations)
+			expectedSorted := make([][]Card, len(tt.expectedCombinations))
+			copy(expectedSorted, tt.expectedCombinations)
+			sortCombinations(expectedSorted)
+
+			if len(allCombinations) != len(expectedSorted) {
+				t.Errorf("Expected %d combinations, got %d", len(expectedSorted), len(allCombinations))
+				t.Logf("Description: %s", tt.description)
+				t.Logf("Table cards: %v", tt.tableCards)
+				t.Logf("Expected combinations:")
+				for i, combo := range expectedSorted {
+					sum := 0
+					for _, card := range combo {
+						sum += card.GetEscobaValue()
+					}
+					t.Logf("  %d: %v (sum=%d)", i+1, combo, sum)
+				}
+				t.Logf("Actual combinations:")
+				for i, combo := range allCombinations {
+					sum := 0
+					for _, card := range combo {
+						sum += card.GetEscobaValue()
+					}
+					t.Logf("  %d: %v (sum=%d)", i+1, combo, sum)
+				}
+				return
+			}
+
+			// Verify all combinations have the correct sum and match expected
+			for i, combo := range allCombinations {
+				sum := 0
+				for _, card := range combo {
+					sum += card.GetEscobaValue()
+				}
+				if sum != 15 {
+					t.Errorf("Combination %d has sum %d, expected 15", i+1, sum)
+					t.Logf("Combination: %v", combo)
+				}
+
+				// Check if this combination matches any expected combination
+				found := false
+				for j, expectedCombo := range expectedSorted {
+					if combinationsEqual(combo, expectedCombo) {
+						found = true
+						// Remove this expected combination to avoid double matching
+						expectedSorted = append(expectedSorted[:j], expectedSorted[j+1:]...)
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Unexpected combination found: %v", combo)
+				}
+			}
+
+			// Verify all expected combinations were found
+			if len(expectedSorted) > 0 {
+				t.Errorf("Missing expected combinations: %v", expectedSorted)
+			}
+
+			// Verify each combination uses only cards from the table
+			for i, combo := range allCombinations {
+				for _, comboCard := range combo {
+					found := false
+					for _, tableCard := range tt.tableCards {
+						if comboCard == tableCard {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Combination %d contains card %v not in table cards", i, comboCard)
+					}
+				}
+			}
+		})
+	}
+}
+
+// Helper function to sort combinations for consistent comparison
+func sortCombinations(combinations [][]Card) {
+	// Sort each individual combination
+	for _, combo := range combinations {
+		slices.SortFunc(combo, func(a, b Card) int {
+			if a.Suit != b.Suit {
+				if a.Suit < b.Suit {
+					return -1
+				}
+				return 1
+			}
+			return a.Number - b.Number
+		})
+	}
+
+	// Sort the slice of combinations
+	slices.SortFunc(combinations, func(a, b []Card) int {
+		minLen := len(a)
+		if len(b) < minLen {
+			minLen = len(b)
+		}
+
+		for i := 0; i < minLen; i++ {
+			if a[i].Suit != b[i].Suit {
+				if a[i].Suit < b[i].Suit {
+					return -1
+				}
+				return 1
+			}
+			if a[i].Number != b[i].Number {
+				return a[i].Number - b[i].Number
+			}
+		}
+
+		return len(a) - len(b)
+	})
+}
+
+func TestFindCombinationsDFSSliceSharingBugFixed(t *testing.T) {
+	// This test specifically addresses the original bug where slice sharing
+	// in the recursive calls would cause incorrect combinations to be generated.
+	// The bug scenario: when append(currentCombination, card) shared the underlying
+	// array between recursive calls, it would cause combinations to be overwritten.
+
+	// Test case that would trigger the bug: multiple combinations of similar length
+	tableCards := []Card{
+		{Suit: ORO, Number: 6},    // Value 6
+		{Suit: COPA, Number: 6},   // Value 6
+		{Suit: ESPADA, Number: 3}, // Value 3
+		{Suit: BASTO, Number: 2},  // Value 2
+		{Suit: ORO, Number: 1},    // Value 1
+	}
+
+	var allCombinations [][]Card
+	findCombinationsDFS(tableCards, 15, []Card{}, 0, &allCombinations)
+
+	// Expected combinations that sum to 15:
+	// [6♦, 6♥, 3♠] = 15
+	// [6♦, 6♥, 2♣, 1♦] = 15
+	// No other combinations should exist
+
+	expectedCount := 2
+	if len(allCombinations) != expectedCount {
+		t.Errorf("Expected %d combinations, got %d", expectedCount, len(allCombinations))
+		t.Logf("Found combinations:")
+		for i, combo := range allCombinations {
+			sum := 0
+			for _, card := range combo {
+				sum += card.GetEscobaValue()
+			}
+			t.Logf("  %d: %v (sum=%d)", i+1, combo, sum)
+		}
+		return
+	}
+
+	// Verify each combination has the correct sum
+	for i, combo := range allCombinations {
+		sum := 0
+		for _, card := range combo {
+			sum += card.GetEscobaValue()
+		}
+		if sum != 15 {
+			t.Errorf("Combination %d has sum %d, expected 15", i+1, sum)
+		}
+	}
+
+	// Verify no combination contains the same card twice (this would indicate the bug)
+	for i, combo := range allCombinations {
+		cardCounts := make(map[Card]int)
+		for _, card := range combo {
+			cardCounts[card]++
+			if cardCounts[card] > 1 {
+				t.Errorf("Combination %d contains duplicate card %v", i+1, card)
+				t.Logf("Full combination: %v", combo)
+			}
+		}
+	}
+
+	// Verify all combinations are unique
+	for i := 0; i < len(allCombinations); i++ {
+		for j := i + 1; j < len(allCombinations); j++ {
+			if combinationsEqual(allCombinations[i], allCombinations[j]) {
+				t.Errorf("Found duplicate combinations at indices %d and %d", i, j)
+				t.Logf("Combination %d: %v", i, allCombinations[i])
+				t.Logf("Combination %d: %v", j, allCombinations[j])
+			}
+		}
+	}
+
+	t.Logf("✅ SUCCESS: Slice sharing bug is fixed - no duplicate cards or combinations found")
 }
 
 func TestRandomGameSimulation(t *testing.T) {
@@ -742,4 +1095,16 @@ func TestStartNewRoundIncludesInitialEscobaLogic(t *testing.T) {
 	}
 
 	t.Logf("✅ SUCCESS: startNewRound method integration is working correctly!")
+}
+
+func combinationsEqual(a, b []Card) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, card := range a {
+		if card != b[i] {
+			return false
+		}
+	}
+	return true
 }
