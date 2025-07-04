@@ -64,6 +64,9 @@ type GameState struct {
 	// LastCapturerPlayerID tracks the last player who made a capture (for remaining table cards)
 	LastCapturerPlayerID int `json:"lastCapturerPlayerID"`
 
+	// SetJustStarted is true if a set has just started.
+	SetJustStarted bool `json:"setJustStarted"`
+
 	deck *deck `json:"-"`
 }
 
@@ -123,6 +126,7 @@ func (g *GameState) startNewSet() {
 	g.LastCapturerPlayerID = g.RoundTurnPlayerID // Reset to current mano
 	g.RoundNumber = 0
 	g.SetFinished = false
+	g.SetJustStarted = true
 	g.startNewRound()
 }
 
@@ -179,6 +183,7 @@ func (g *GameState) RunAction(action Action) error {
 	}
 
 	g.RoundJustStarted = false
+	g.SetJustStarted = false
 	bs := SerializeAction(action)
 	g.Actions = append(g.Actions, bs)
 	g.ActionOwnerPlayerIDs = append(g.ActionOwnerPlayerIDs, g.CurrentPlayerID())

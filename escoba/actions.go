@@ -101,13 +101,14 @@ func (a ActionThrowCard) Run(g *GameState) error {
 
 	if len(a.CapturedTableCards) > 0 {
 		// Capture the combination
-		cardsToCapture := append(a.CapturedTableCards, a.Card)
+		cardsToCapture := make([]Card, 0, len(a.CapturedTableCards)+1)
+		cardsToCapture = append(cardsToCapture, a.CapturedTableCards...)
+		cardsToCapture = append(cardsToCapture, a.Card)
 		g.Piles[playerID] = append(g.Piles[playerID], cardsToCapture...)
 
 		// Remove captured cards from table
-		g.TableCards = g.removeCardsFromTable(g.TableCards, a.CapturedTableCards)
+		g.TableCards = g.removeCardsFromTable(g.TableCards, cardsToCapture)
 
-		// Track this player as the last capturer
 		g.LastCapturerPlayerID = playerID
 
 		// Check if this is an escoba (table was cleared)
@@ -195,21 +196,21 @@ func (g *GameState) findAllValidCombinations(thrownCard Card, tableCards []Card)
 
 // removeCardsFromTable removes the specified cards from the table
 func (g *GameState) removeCardsFromTable(tableCards []Card, toRemove []Card) []Card {
-	result := []Card{}
+	// Create set from tableCards
+	tableSet := make(map[Card]struct{})
+	for _, card := range tableCards {
+		tableSet[card] = struct{}{}
+	}
 
-	for _, tableCard := range tableCards {
-		shouldRemove := false
-		for i, removeCard := range toRemove {
-			if tableCard == removeCard {
-				// Remove this card from toRemove to handle duplicates
-				toRemove = append(toRemove[:i], toRemove[i+1:]...)
-				shouldRemove = true
-				break
-			}
-		}
-		if !shouldRemove {
-			result = append(result, tableCard)
-		}
+	// Remove cards that are in toRemove
+	for _, card := range toRemove {
+		delete(tableSet, card)
+	}
+
+	// Convert back to slice
+	result := make([]Card, 0, len(tableSet))
+	for card := range tableSet {
+		result = append(result, card)
 	}
 
 	return result
