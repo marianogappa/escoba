@@ -123,6 +123,59 @@ func (a ActionThrowCard) Run(g *GameState) error {
 	return nil
 }
 
+// CardCount returns the total number of cards captured.
+func (a ActionThrowCard) CardCount() int {
+	if !a.IsCapture() {
+		return 0
+	}
+	return len(a.CapturedTableCards) + 1
+}
+
+// OrosCount returns the number of Oros (Golds) captured.
+func (a ActionThrowCard) OrosCount() int {
+	count := 0
+	if a.Card.Suit == ORO {
+		count++
+	}
+	for _, card := range a.CapturedTableCards {
+		if card.Suit == ORO {
+			count++
+		}
+	}
+	return count
+}
+
+// IsCapture returns true if the action captured any cards.
+func (a ActionThrowCard) IsCapture() bool {
+	return len(a.CapturedTableCards) > 0
+}
+
+// CapturesSieteDeVelos returns true if the Siete de Velos (7 of Golds) was captured.
+func (a ActionThrowCard) CapturesSieteDeVelos() bool {
+	sieteDeVelos := Card{Suit: ORO, Number: 7}
+	return a.IsCapture() && (slices.Contains(a.CapturedTableCards, sieteDeVelos) || a.Card == sieteDeVelos)
+}
+
+// IsEscoba returns true if the action resulted in an escoba (clearing the table).
+func (a ActionThrowCard) IsEscoba(g *GameState) bool {
+	// An escoba happens if we capture cards and the table becomes empty.
+	// The number of cards on the table before this move is len(g.TableCards).
+	// The number of cards we capture from the table is len(a.CapturedTableCards).
+	// If they are equal and greater than 0, it's an escoba.
+	return a.IsCapture() && len(g.TableCards) == len(a.CapturedTableCards)
+}
+
+func (a ActionThrowCard) CardSetentaSum() int {
+	// Sum card values for cards <= 7
+	sum := 0
+	for _, card := range a.CapturedTableCards {
+		if card.Number <= 7 {
+			sum += card.GetEscobaValue()
+		}
+	}
+	return sum
+}
+
 func (a ActionThrowCard) String() string {
 	if len(a.CapturedTableCards) == 0 {
 		return fmt.Sprintf("throw %s to table", a.Card.String())
